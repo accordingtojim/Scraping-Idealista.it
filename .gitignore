@@ -169,3 +169,8 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+#Code JC
+launch.json
+tempCodeRunnerFile.py
+main_test copy.py
