@@ -1,5 +1,6 @@
 from scraping import  extract_auction_links_from_page, extract_house_details
 import json
+from import_sqlite import import_json_to_sqlite
 import argparse  # Aggiunto argparse
 import os
 from bs4 import BeautifulSoup
@@ -10,13 +11,14 @@ houses = []
 enhanced_auctions = []
 save_directory = "downloads"
 name_dump = 'debug.json'
+if False :
+    links = extract_auction_links_from_page("busto-arsizio","varese")
+    for link in links: houses.append(extract_house_details(link))
 
-links = extract_auction_links_from_page("busto-arsizio","varese")
-for link in links: houses.append(extract_house_details(link))
+    #Debug
+    with open(f"{name_dump}", 'w', encoding='utf-8') as file:
+        json.dump(houses, file, indent=4, ensure_ascii=False)
 
-#Debug
-with open(f"{name_dump}", 'w', encoding='utf-8') as file:
-    json.dump(houses, file, indent=4, ensure_ascii=False)
-
+import_json_to_sqlite(name_dump,'house.db')
 
     

@@ -95,15 +95,6 @@ def extract_auction_links_from_page(città, provincia, max_pagina='all', categor
     if html_content is None:
         print(f"⚠️ Contenuto HTML vuoto")
         return links
-    
-    # Esporta il contenuto HTML in un file JSON di debug
-    # debug_data = {
-    #     "url": website_url,
-    #     "html_content": html_content
-    # }
-    # with open("debug_html.json", "w", encoding="utf-8") as file:
-    #     json.dump(debug_data, file, ensure_ascii=False, indent=4)
-    # print("✅ Contenuto HTML esportato in debug_html.json")
 
     # Analizza il contenuto HTML con BeautifulSoup
     soup = BeautifulSoup(html_content, 'html.parser')
@@ -129,6 +120,7 @@ def extract_house_details(url, save_directory='downloads'):
     zona = 'Zona non trovata'
     comune = 'Comune non trovato'
     area = 'Area non trovata'
+    list_indirizzo = ['Via', 'Corso', 'Piazza']
 
     if position_section:
         indirizzo_element = position_section.find('ul')
@@ -140,11 +132,40 @@ def extract_house_details(url, save_directory='downloads'):
                 comune = indirizzo_list[2].text.strip()  # Busto Arsizio
                 area = indirizzo_list[3].text.strip()  # Area Busto Arsizio-Castellanza, Varese
             else :
-                #indirizzo = indirizzo_list[0].text.strip()  # Indirizzo
-                zona = indirizzo_list[0].text.strip()  # Zona Centro
-                comune = indirizzo_list[1].text.strip()  # Busto Arsizio
-                area = indirizzo_list[2].text.strip()  # Area Busto Arsizio-Castellanza, Varese
-                
+                for i in list_indirizzo: 
+                    if i in indirizzo_list[0].text.strip(): 
+                        indirizzo = indirizzo_list[0].text.strip()
+                        #zona = indirizzo_list[0].text.strip()  # Zona Centro
+                        comune = indirizzo_list[1].text.strip()  # Busto Arsizio
+                        area = indirizzo_list[2].text.strip()  # Area Busto Arsizio-Castellanza, Varese
+                        break
+                    else:
+                        #indirizzo = indirizzo_list[0].text.strip()
+                        zona = indirizzo_list[0].text.strip()  # Zona Centro
+                        comune = indirizzo_list[1].text.strip()  # Busto Arsizio
+                        area = indirizzo_list[2].text.strip()  # Area Busto Arsizio-Castellanza, Varese
+
+    # Estrazione prezzo e prezzo al metro quadro
+    prezzo = 'Prezzo non trovato'
+    prezzo_mq = 'Prezzo al m² non trovato'
+
+    price_section = soup.find('article', class_='price-feature')
+    if price_section:
+        price_details = price_section.find_all('p', class_='flex-feature')
+        for detail in price_details:
+            label = detail.find('span', class_='flex-feature-details')
+            if not label:
+                continue
+            value = detail.find('strong', class_='flex-feature-details') or detail.find_all('span', class_='flex-feature-details')[-1]
+            if label and value:
+                if 'Prezzo dell\'immobile' in label.text:
+                    prezzo = value.text.strip()
+                elif 'Prezzo al m²' in label.text:
+                    prezzo_mq = value.text.strip()
+    prezzo_float = float(prezzo.replace('€/mese', '').replace('.', '').replace(',', '.').strip())
+    prezzo_mq_float = float(prezzo_mq.replace('€/m²', '').replace('.', '').replace(',', '.').strip())
+    mq_float = round(prezzo_float / prezzo_mq_float)
+              
 
     directory_path = f"asta_{indirizzo.replace('-', '').replace('  ', ' ').replace(' ', '_')}_{comune.replace('-', '').replace('  ', ' ').replace(' ', '_')}"
     details = {
@@ -152,6 +173,9 @@ def extract_house_details(url, save_directory='downloads'):
         'Zona': zona,
         'Comune': comune,
         'Area': area,
+        'Prezzo': prezzo_float,
+        'Prezzo al m²': prezzo_mq_float,
+        'Superficie in mq' : mq_float,
         'Url' : url,
         'Id_casa': id_casa,
         'Directory': os.path.join(save_directory, directory_path)

@@ -174,3 +174,5 @@ cython_debug/
 launch.json
 tempCodeRunnerFile.py
 main_test copy.py
+house.db
+debug.json
