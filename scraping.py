@@ -85,27 +85,48 @@ def fetch_html_with_cookies(url, headers=None, proxies=None):
         print(f"Errore durante il fetch: {e}")
         return None
 
-def extract_auction_links_from_page(città, provincia, max_pagina='all', categoria="affitto"):
-    links = set()  # Usiamo un set per evitare duplicati
-    website_url = f"https://www.idealista.it/{categoria}-case/{città}-{provincia}/?ordine=pubblicazione-desc"
-    print(f"Scaricando: {website_url}")
-    
-    # Scarica l'HTML
-    html_content = fetch_html_with_cookies(website_url)
-    if html_content is None:
-        print(f"⚠️ Contenuto HTML vuoto")
-        return links
+def extract_auction_links_from_page(città, provincia='provincia', categoria='affitto'):
+    """
+    Estrae i link degli annunci da tutte le pagine dei risultati per una data città e provincia.
+    """
+    base_url = f"https://www.idealista.it/{categoria}-case/{città}-{provincia}/"
+    params = {'ordine': 'pubblicazione-desc'}
+    links = set()
+    page_number = 1
 
-    # Analizza il contenuto HTML con BeautifulSoup
-    soup = BeautifulSoup(html_content, 'html.parser')
-    for a_tag in soup.find_all('a', href=True):
-        relative_url = a_tag.get('href')
-        if relative_url.startswith('/immobile/'):
-            # Costruisci l'URL completo
-            full_url = "https://www.idealista.it" + relative_url
-            links.add(full_url)
-    
+    while True:
+        if page_number == 1:
+            url = base_url
+        else:
+            url = f"{base_url}lista-{page_number}.htm"
+
+        print(f"Scaricando: {url}")
+        html_content = fetch_html_with_cookies(url)
+        if html_content is None:
+            print(f"⚠️ Contenuto HTML vuoto per la pagina {page_number}. Interruzione.")
+            break
+
+        soup = BeautifulSoup(html_content, 'html.parser')
+
+        # Estrai i link degli annunci
+        page_links = 0
+        for a_tag in soup.find_all('a', href=True):
+            relative_url = a_tag.get('href')
+            if relative_url.startswith('/immobile/'):
+                full_url = "https://www.idealista.it" + relative_url
+                if full_url not in links:
+                    links.add(full_url)
+                    page_links += 1
+
+        if page_links == 0:
+            print(f"⚠️ Nessun nuovo link trovato nella pagina {page_number}. Interruzione.")
+            break
+
+        page_number += 1
+        time.sleep(1)  # Rispetta il server evitando richieste troppo ravvicinate
+
     return links
+
 
 def extract_house_details(url, save_directory='downloads'):
     html_content = fetch_html_with_cookies(url)  # Funzione di recupero HTML da definire
@@ -131,7 +152,7 @@ def extract_house_details(url, save_directory='downloads'):
                 zona = indirizzo_list[1].text.strip()  # Zona Centro
                 comune = indirizzo_list[2].text.strip()  # Busto Arsizio
                 area = indirizzo_list[3].text.strip()  # Area Busto Arsizio-Castellanza, Varese
-            else :
+            elif  len(indirizzo_list) == 3:
                 for i in list_indirizzo: 
                     if i in indirizzo_list[0].text.strip(): 
                         indirizzo = indirizzo_list[0].text.strip()
@@ -144,6 +165,12 @@ def extract_house_details(url, save_directory='downloads'):
                         zona = indirizzo_list[0].text.strip()  # Zona Centro
                         comune = indirizzo_list[1].text.strip()  # Busto Arsizio
                         area = indirizzo_list[2].text.strip()  # Area Busto Arsizio-Castellanza, Varese
+            else:
+                
+                indirizzo = 'Indirizzo non trovato'
+                zona = 'Zona non trovata'
+                comune = 'Comune non trovato'
+                area = 'Area non trovata'
 
     # Estrazione prezzo e prezzo al metro quadro
     prezzo = 'Prezzo non trovato'
@@ -162,8 +189,8 @@ def extract_house_details(url, save_directory='downloads'):
                     prezzo = value.text.strip()
                 elif 'Prezzo al m²' in label.text:
                     prezzo_mq = value.text.strip()
-    prezzo_float = float(prezzo.replace('€/mese', '').replace('.', '').replace(',', '.').strip())
-    prezzo_mq_float = float(prezzo_mq.replace('€/m²', '').replace('.', '').replace(',', '.').strip())
+    prezzo_float = round(float(prezzo.replace('€/mese', '').replace('.', '').replace(',', '.').strip()))
+    prezzo_mq_float = round(float(prezzo_mq.replace('€/m²', '').replace('.', '').replace(',', '.').strip()))
     mq_float = round(prezzo_float / prezzo_mq_float)
               
 

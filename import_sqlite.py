@@ -5,7 +5,7 @@ from datetime import datetime
 def import_json_to_sqlite(json_file, sqlite_db):
     """
     Importa i dati da un file JSON in un database SQLite.
-    Se l'annuncio esiste, aggiorna i dettagli e registra la variazione di prezzo.
+    Se l'annuncio esiste, aggiorna i dettagli e registra la variazione di prezzo solo se il prezzo è cambiato.
     Se l'annuncio non esiste, lo inserisce insieme al prezzo iniziale.
 
     :param json_file: Percorso al file JSON.
@@ -50,44 +50,67 @@ def import_json_to_sqlite(json_file, sqlite_db):
         id_casa = item.get('Id_casa')
         nuovo_prezzo = item.get('Prezzo')
 
-        # Inserisci o aggiorna l'annuncio
-        cursor.execute('''
-        INSERT INTO properties (
-            id_casa, indirizzo, zona, comune, prezzo,
-            prezzo_al_m2, superficie_in_mq, url, directory
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id_casa) DO UPDATE SET
-            indirizzo=excluded.indirizzo,
-            zona=excluded.zona,
-            comune=excluded.comune,
-            prezzo=excluded.prezzo,
-            prezzo_al_m2=excluded.prezzo_al_m2,
-            superficie_in_mq=excluded.superficie_in_mq,
-            url=excluded.url,
-            directory=excluded.directory
-        ''', (
-            id_casa,
-            item.get('Indirizzo'),
-            item.get('Zona'),
-            item.get('Comune'),
-            nuovo_prezzo,
-            item.get('Prezzo al m²'),
-            item.get('Superficie in mq'),
-            item.get('Url'),
-            item.get('Directory')
-        ))
+        # Verifica se l'annuncio esiste già
+        cursor.execute('SELECT prezzo FROM properties WHERE id_casa = ?', (id_casa,))
+        record = cursor.fetchone()
 
-        # Controlla l'ultimo prezzo registrato
-        cursor.execute('''
-        SELECT prezzo FROM cronologia_prezzi
-        WHERE id_casa = ?
-        ORDER BY data_modifica DESC
-        LIMIT 1
-        ''', (id_casa,))
-        ultimo_prezzo = cursor.fetchone()
+        if record:
+            # L'annuncio esiste, confronta il prezzo
+            ultimo_prezzo = record[0]
+            if ultimo_prezzo != nuovo_prezzo:
+                # Aggiorna l'annuncio
+                cursor.execute('''
+                UPDATE properties SET
+                    indirizzo = ?,
+                    zona = ?,
+                    comune = ?,
+                    prezzo = ?,
+                    prezzo_al_m2 = ?,
+                    superficie_in_mq = ?,
+                    url = ?,
+                    directory = ?
+                WHERE id_casa = ?
+                ''', (
+                    item.get('Indirizzo'),
+                    item.get('Zona'),
+                    item.get('Comune'),
+                    nuovo_prezzo,
+                    item.get('Prezzo al m²'),
+                    item.get('Superficie in mq'),
+                    item.get('Url'),
+                    item.get('Directory'),
+                    id_casa
+                ))
 
-        # Se il prezzo è cambiato, registra la variazione
-        if ultimo_prezzo is None or ultimo_prezzo[0] != nuovo_prezzo:
+                # Inserisci una nuova voce nella cronologia dei prezzi
+                cursor.execute('''
+                INSERT INTO cronologia_prezzi (id_casa, prezzo, data_modifica)
+                VALUES (?, ?, ?)
+                ''', (
+                    id_casa,
+                    nuovo_prezzo,
+                    datetime.now()
+                ))
+        else:
+            # L'annuncio non esiste, inseriscilo
+            cursor.execute('''
+            INSERT INTO properties (
+                id_casa, indirizzo, zona, comune, prezzo,
+                prezzo_al_m2, superficie_in_mq, url, directory
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                id_casa,
+                item.get('Indirizzo'),
+                item.get('Zona'),
+                item.get('Comune'),
+                nuovo_prezzo,
+                item.get('Prezzo al m²'),
+                item.get('Superficie in mq'),
+                item.get('Url'),
+                item.get('Directory')
+            ))
+
+            # Inserisci il prezzo iniziale nella cronologia dei prezzi
             cursor.execute('''
             INSERT INTO cronologia_prezzi (id_casa, prezzo, data_modifica)
             VALUES (?, ?, ?)
@@ -102,4 +125,3 @@ def import_json_to_sqlite(json_file, sqlite_db):
     conn.close()
 
     print(f'Dati importati e aggiornati con successo in {sqlite_db}')
-
