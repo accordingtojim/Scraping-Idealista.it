@@ -85,9 +85,14 @@ def fetch_html_with_cookies(url, headers=None, proxies=None):
         print(f"Errore durante il fetch: {e}")
         return None
 
-def extract_auction_links_from_page(città, provincia='provincia', categoria='affitto'):
+def extract_auction_links_from_page(città, provincia='provincia', categoria='affitto', num_pagine='all'):
     """
     Estrae i link degli annunci da tutte le pagine dei risultati per una data città e provincia.
+    
+    :param città: Nome della città.
+    :param provincia: Nome della provincia.
+    :param categoria: Categoria di ricerca (es. 'affitto').
+    :param num_pagine: Numero di pagine da scaricare (default 'all' per scaricare tutte).
     """
     base_url = f"https://www.idealista.it/{categoria}-case/{città}-{provincia}/"
     params = {'ordine': 'pubblicazione-desc'}
@@ -95,6 +100,10 @@ def extract_auction_links_from_page(città, provincia='provincia', categoria='af
     page_number = 1
 
     while True:
+        if num_pagine != 'all' and page_number > int(num_pagine):
+            print(f"🔄 Numero massimo di pagine ({num_pagine}) raggiunto. Interruzione.")
+            break
+
         if page_number == 1:
             url = base_url
         else:
@@ -128,9 +137,17 @@ def extract_auction_links_from_page(città, provincia='provincia', categoria='af
     return links
 
 
-def extract_house_details(url, save_directory='downloads'):
-    html_content = fetch_html_with_cookies(url)  # Funzione di recupero HTML da definire
+def extract_house_details(json_file_path):
+    # Carica il file JSON
+    with open(json_file_path, 'r', encoding='utf-8') as file:
+        data = json.load(file)
+
+    # Estrai i valori da JSON
+    url = data.get('url', '')
+    html_content = data.get('html', '')
+
     soup = BeautifulSoup(html_content, 'html.parser')
+    directory_path = ''
 
     # Trova l'elemento che contiene la sezione "Posizione"
     position_section = soup.find('div', id='headerMap')
@@ -152,21 +169,18 @@ def extract_house_details(url, save_directory='downloads'):
                 zona = indirizzo_list[1].text.strip()  # Zona Centro
                 comune = indirizzo_list[2].text.strip()  # Busto Arsizio
                 area = indirizzo_list[3].text.strip()  # Area Busto Arsizio-Castellanza, Varese
-            elif  len(indirizzo_list) == 3:
-                for i in list_indirizzo: 
-                    if i in indirizzo_list[0].text.strip(): 
+            elif len(indirizzo_list) == 3:
+                for i in list_indirizzo:
+                    if i in indirizzo_list[0].text.strip():
                         indirizzo = indirizzo_list[0].text.strip()
-                        #zona = indirizzo_list[0].text.strip()  # Zona Centro
                         comune = indirizzo_list[1].text.strip()  # Busto Arsizio
                         area = indirizzo_list[2].text.strip()  # Area Busto Arsizio-Castellanza, Varese
                         break
                     else:
-                        #indirizzo = indirizzo_list[0].text.strip()
                         zona = indirizzo_list[0].text.strip()  # Zona Centro
                         comune = indirizzo_list[1].text.strip()  # Busto Arsizio
                         area = indirizzo_list[2].text.strip()  # Area Busto Arsizio-Castellanza, Varese
             else:
-                
                 indirizzo = 'Indirizzo non trovato'
                 zona = 'Zona non trovata'
                 comune = 'Comune non trovato'
@@ -185,14 +199,14 @@ def extract_house_details(url, save_directory='downloads'):
                 continue
             value = detail.find('strong', class_='flex-feature-details') or detail.find_all('span', class_='flex-feature-details')[-1]
             if label and value:
-                if 'Prezzo dell\'immobile' in label.text:
+                if "Prezzo dell'immobile" in label.text:
                     prezzo = value.text.strip()
                 elif 'Prezzo al m²' in label.text:
                     prezzo_mq = value.text.strip()
+
     prezzo_float = round(float(prezzo.replace('€/mese', '').replace('.', '').replace(',', '.').strip()))
     prezzo_mq_float = round(float(prezzo_mq.replace('€/m²', '').replace('.', '').replace(',', '.').strip()))
     mq_float = round(prezzo_float / prezzo_mq_float)
-              
 
     directory_path = f"asta_{indirizzo.replace('-', '').replace('  ', ' ').replace(' ', '_')}_{comune.replace('-', '').replace('  ', ' ').replace(' ', '_')}"
     details = {
@@ -202,13 +216,30 @@ def extract_house_details(url, save_directory='downloads'):
         'Area': area,
         'Prezzo': prezzo_float,
         'Prezzo al m²': prezzo_mq_float,
-        'Superficie in mq' : mq_float,
-        'Url' : url,
+        'Superficie in mq': mq_float,
+        'Url': url,
         'Id_casa': id_casa,
-        'Directory': os.path.join(save_directory, directory_path)
+        #'Directory': os.path.join(save_directory, directory_path)
     }
 
     return details
+
+def extract_ids_from_links(links):
+    """
+    Estrae gli ID dai link forniti.
+
+    :param links: Lista di link.
+    :return: Lista di ID estratti dai link.
+    """
+    ids = []
+    for link in links:
+        try:
+            # L'ID è il penultimo elemento separato da '/'
+            id_immobile = link.strip('/').split('/')[-1]
+            ids.append(id_immobile)
+        except IndexError:
+            print(f"⚠️ Link non valido: {link}")
+    return ids
 
 
 def download_files_from_page(url, auction_directory):
