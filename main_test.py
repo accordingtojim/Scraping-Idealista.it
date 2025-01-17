@@ -34,12 +34,12 @@ if 0:
     fetch_html_from_links(links, save_directory)
    
 for id in ids:
-    houses.append(extract_house_details(f"{save_directory}."+str(id)))
+    houses.append(extract_house_details(f"{save_directory}/{id}.json"))
 with open(f"{name_dump}", 'w', encoding='utf-8') as file:
         json.dump(houses, file, indent=4, ensure_ascii=False)
 
 #Debug
-if 0:
+if 1:
     
 
     import_json_to_sqlite(name_dump,'house.db')

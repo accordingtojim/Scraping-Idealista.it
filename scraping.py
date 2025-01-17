@@ -208,6 +208,22 @@ def extract_house_details(json_file_path):
     prezzo_mq_float = round(float(prezzo_mq.replace('€/m²', '').replace('.', '').replace(',', '.').strip()))
     mq_float = round(prezzo_float / prezzo_mq_float)
 
+    # Estrazione statistiche
+    stats_section = soup.find('div', id='stats-ondemand')
+    visite = 'Visite non trovate'
+    contatti_email = 'Contatti via email non trovati'
+    salvato_preferito = 'Salvato come preferito non trovato'
+
+    if stats_section:
+        stats_list = stats_section.find_all('li')
+        for stat in stats_list:
+            if 'visite' in stat.text:
+                visite = stat.find('strong').text.strip()
+            elif 'contatti via email' in stat.text:
+                contatti_email = stat.find('strong').text.strip()
+            elif 'salvato come preferito' in stat.text:
+                salvato_preferito = stat.find('strong').text.strip()
+
     directory_path = f"asta_{indirizzo.replace('-', '').replace('  ', ' ').replace(' ', '_')}_{comune.replace('-', '').replace('  ', ' ').replace(' ', '_')}"
     details = {
         'Indirizzo': indirizzo,
@@ -219,10 +235,14 @@ def extract_house_details(json_file_path):
         'Superficie in mq': mq_float,
         'Url': url,
         'Id_casa': id_casa,
+        'Visite': visite,
+        'Contatti via email': contatti_email,
+        'Salvato come preferito': salvato_preferito,
         #'Directory': os.path.join(save_directory, directory_path)
     }
 
     return details
+
 
 def extract_ids_from_links(links):
     """
