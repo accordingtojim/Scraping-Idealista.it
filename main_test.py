@@ -15,12 +15,16 @@ save_directory = "downloads"
 name_dump = 'debug.json'
 name_link = 'links.json'
 
-lista_comune = ["busto-arsizio"]
-lista_provincia = ["varese"]
+lista_comune = ['busto-arsizio', 'gallarate', 'castellanza', 'sondrio', 'tirano', 'morbegno', 
+                'talamona', 'lonate-pozzolo', 'samarate', 'cardano-al-campo', 'varese']
+lista_provincia = ["varese","varese","varese","sondrio","sondrio","sondrio",
+                   "sondrio","varese","varese","varese","varese"]
+
+
 len_comune = len(lista_comune)
-if 0 :
+if 1 :
     for element in range(0,len_comune):
-        nuovi_link = extract_auction_links_from_page(lista_comune[element], lista_provincia[element],'affitto',1)
+        nuovi_link = extract_auction_links_from_page(lista_comune[element], lista_provincia[element],'affitto','all')
         links.update(nuovi_link)
     links_list = list(links)
     with open(f"{name_link}", 'w', encoding='utf-8') as file:
@@ -30,7 +34,7 @@ with open(name_link, 'r', encoding='utf-8') as file:
         links = json.load(file)  
 ids = extract_ids_from_links(links)
 
-if 0:
+if 1:
     fetch_html_from_links(links, save_directory)
    
 for id in ids:
@@ -40,8 +44,6 @@ with open(f"{name_dump}", 'w', encoding='utf-8') as file:
 
 #Debug
 if 1:
-    
-
     import_json_to_sqlite(name_dump,'house.db')
 
     

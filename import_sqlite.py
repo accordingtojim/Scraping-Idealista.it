@@ -6,6 +6,7 @@ def import_json_to_sqlite(json_file, sqlite_db):
     """
     Importa i dati da un file JSON in un database SQLite.
     La data di importazione viene registrata solo la prima volta.
+    Gestisce anche lo stato di "venduto" e la data di quando un immobile viene affittato.
     
     :param json_file: Percorso al file JSON.
     :param sqlite_db: Percorso al file del database SQLite.
@@ -34,7 +35,8 @@ def import_json_to_sqlite(json_file, sqlite_db):
         contatti_email TEXT,
         salvato_preferito TEXT,
         data_importazione TIMESTAMP,
-        data_creazione TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        venduto BOOLEAN DEFAULT FALSE,
+        data_affitto TIMESTAMP
     )
     ''')
 
@@ -48,11 +50,17 @@ def import_json_to_sqlite(json_file, sqlite_db):
     )
     ''')
 
+    # Trova tutti gli ID attualmente nel database
+    cursor.execute('SELECT id_casa FROM properties WHERE venduto = FALSE')
+    current_ids = set(row[0] for row in cursor.fetchall())
+
     # Inserimento o aggiornamento dei dati nel database
+    imported_ids = set()
     for item in data:
         id_casa = item.get('Id_casa')
         nuovo_prezzo = item.get('Prezzo')
         data_importazione = datetime.now()
+        imported_ids.add(id_casa)
 
         # Verifica se l'annuncio esiste già
         cursor.execute('SELECT prezzo, data_importazione FROM properties WHERE id_casa = ?', (id_casa,))
@@ -134,6 +142,14 @@ def import_json_to_sqlite(json_file, sqlite_db):
                 nuovo_prezzo,
                 datetime.now()
             ))
+
+    # Aggiorna lo stato "venduto" per gli ID non più presenti nel JSON
+    ids_venduti = current_ids - imported_ids
+    for id_venduto in ids_venduti:
+        cursor.execute('''
+        UPDATE properties SET venduto = TRUE, data_affitto = ?
+        WHERE id_casa = ?
+        ''', (datetime.now(), id_venduto))
 
     # Salva (commit) le modifiche e chiudi la connessione
     conn.commit()

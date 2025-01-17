@@ -204,9 +204,16 @@ def extract_house_details(json_file_path):
                 elif 'Prezzo al m²' in label.text:
                     prezzo_mq = value.text.strip()
 
-    prezzo_float = round(float(prezzo.replace('€/mese', '').replace('.', '').replace(',', '.').strip()))
-    prezzo_mq_float = round(float(prezzo_mq.replace('€/m²', '').replace('.', '').replace(',', '.').strip()))
-    mq_float = round(prezzo_float / prezzo_mq_float)
+    try:
+        prezzo_float = round(float(prezzo.replace('€/mese', '').replace('.', '').replace(',', '.').strip()))
+        prezzo_mq_float = round(float(prezzo_mq.replace('€/m²', '').replace('.', '').replace(',', '.').strip()))
+        mq_float = round(prezzo_float / prezzo_mq_float)
+    except (ValueError, TypeError, ZeroDivisionError):
+        # Se c'è un errore, assegna i valori originali o un fallback
+        prezzo_float = prezzo if 'prezzo_float' not in locals() else prezzo_float
+        prezzo_mq_float = prezzo_mq if 'prezzo_mq_float' not in locals() else prezzo_mq_float
+        mq_float = None  # Nessun calcolo possibile
+
 
     # Estrazione statistiche
     stats_section = soup.find('div', id='stats-ondemand')
