@@ -85,7 +85,7 @@ def fetch_html_with_cookies(url, headers=None, proxies=None):
         print(f"Errore durante il fetch: {e}")
         return None
 
-def extract_auction_links_from_page(città, provincia='provincia', categoria='affitto', num_pagine='all'):
+def extract_auction_links_from_page_comune(città, provincia='provincia', categoria='affitto', num_pagine='all'):
     """
     Estrae i link degli annunci da tutte le pagine dei risultati per una data città e provincia.
     
@@ -136,6 +136,56 @@ def extract_auction_links_from_page(città, provincia='provincia', categoria='af
 
     return links
 
+def extract_auction_links_from_page_provincia(provincia='provincia', categoria='affitto', num_pagine='all'):
+    """
+    Estrae i link degli annunci da tutte le pagine dei risultati per una data città e provincia.
+    
+    :param città: Nome della città.
+    :param provincia: Nome della provincia.
+    :param categoria: Categoria di ricerca (es. 'affitto').
+    :param num_pagine: Numero di pagine da scaricare (default 'all' per scaricare tutte).
+    """
+    base_url = f"https://www.idealista.it/{categoria}-case/{provincia}-provincia/"
+    params = {'ordine': 'pubblicazione-desc'}
+    links = set()
+    page_number = 1
+
+    while True:
+        if num_pagine != 'all' and page_number > int(num_pagine):
+            print(f"🔄 Numero massimo di pagine ({num_pagine}) raggiunto. Interruzione.")
+            break
+
+        if page_number == 1:
+            url = base_url
+        else:
+            url = f"{base_url}lista-{page_number}.htm"
+
+        print(f"Scaricando: {url}")
+        html_content = fetch_html_with_cookies(url)
+        if html_content is None:
+            print(f"⚠️ Contenuto HTML vuoto per la pagina {page_number}. Interruzione.")
+            break
+
+        soup = BeautifulSoup(html_content, 'html.parser')
+
+        # Estrai i link degli annunci
+        page_links = 0
+        for a_tag in soup.find_all('a', href=True):
+            relative_url = a_tag.get('href')
+            if relative_url.startswith('/immobile/'):
+                full_url = "https://www.idealista.it" + relative_url
+                if full_url not in links:
+                    links.add(full_url)
+                    page_links += 1
+
+        if page_links == 0:
+            print(f"⚠️ Nessun nuovo link trovato nella pagina {page_number}. Interruzione.")
+            break
+
+        page_number += 1
+        time.sleep(1)  # Rispetta il server evitando richieste troppo ravvicinate
+
+    return links
 
 def extract_house_details(json_file_path):
     # Carica il file JSON

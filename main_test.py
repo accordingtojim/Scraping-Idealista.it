@@ -1,4 +1,4 @@
-from scraping import  extract_auction_links_from_page, extract_house_details,extract_ids_from_links
+from scraping import  extract_auction_links_from_page_comune,extract_auction_links_from_page_provincia, extract_house_details,extract_ids_from_links
 import json
 from import_sqlite import import_json_to_sqlite
 import argparse  # Aggiunto argparse
@@ -15,17 +15,20 @@ save_directory = "downloads"
 name_dump = 'debug.json'
 name_link = 'links.json'
 
-lista_comune = ['busto-arsizio', 'gallarate', 'castellanza', 'sondrio', 'tirano', 'morbegno', 
-                'talamona', 'lonate-pozzolo', 'samarate', 'cardano-al-campo', 'varese']
-lista_provincia = ["varese","varese","varese","sondrio","sondrio","sondrio",
-                   "sondrio","varese","varese","varese","varese"]
+lista_comune = ['busto-arsizio', 'gallarate', 'castellanza','lonate-pozzolo', 'samarate', 'cardano-al-campo', 'varese','pavia']
+lista_provincia = ["varese","varese","varese","varese","varese","varese","varese","pavia"]
+lista_province = ["sondrio","trento","bolzano-bozen"]
 
 
 len_comune = len(lista_comune)
+len_provincia = len(lista_provincia)
 if 1 :
     for element in range(0,len_comune):
-        nuovi_link = extract_auction_links_from_page(lista_comune[element], lista_provincia[element],'affitto','all')
+        nuovi_link = extract_auction_links_from_page_comune(lista_comune[element], lista_provincia[element],'affitto','all')
         links.update(nuovi_link)
+    for element in range(0,len_provincia):
+        nuovi_link = extract_auction_links_from_page_comune(lista_provincia[element],'affitto','all')
+        links.update(nuovi_link)    
     links_list = list(links)
     with open(f"{name_link}", 'w', encoding='utf-8') as file:
             json.dump(links_list, file, indent=4, ensure_ascii=False)
