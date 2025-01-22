@@ -22,7 +22,7 @@ lista_province = ["sondrio","trento","bolzano-bozen"]
 
 len_comune = len(lista_comune)
 len_provincia = len(lista_provincia)
-if 1 :
+if 0 :
     for element in range(0,len_comune):
         nuovi_link = extract_auction_links_from_page_comune(lista_comune[element], lista_provincia[element],'affitto','all')
         links.update(nuovi_link)

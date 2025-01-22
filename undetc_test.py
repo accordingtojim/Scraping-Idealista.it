@@ -27,7 +27,7 @@ def fetch_html_from_links(links, output_dir="download_html"):
         # Step 1: Apri la homepage di Idealista
         driver.get("https://www.idealista.it/")
         print("Aperta la homepage di Idealista.")
-        time.sleep(random.uniform(5, 10))
+        time.sleep(random.uniform(5, 8))
 
         # Step 2: Gestisci il popup dei cookie
         try:
@@ -36,7 +36,7 @@ def fetch_html_from_links(links, output_dir="download_html"):
             )
             accept_cookies_button.click()
             print("Popup dei cookie gestito.")
-            time.sleep(random.uniform(5, 10))
+            time.sleep(random.uniform(5, 8))
         except Exception as e:
             print("Nessun popup dei cookie trovato o errore:", e)
 
@@ -64,12 +64,12 @@ def fetch_html_from_links(links, output_dir="download_html"):
         print("Email inserita.")
 
         # Step 6: Clicca sul pulsante "Continua"
-        continue_button = WebDriverWait(driver, 10).until(
+        continue_button = WebDriverWait(driver, 9).until(
             EC.element_to_be_clickable((By.XPATH, "//span[text()='Continua']"))
         )
         continue_button.click()
         print("Cliccato su Continua.")
-        time.sleep(random.uniform(5, 10))
+        time.sleep(random.uniform(5, 9))
 
         # Step 7: Inserisci la password
         password_input = WebDriverWait(driver, 10).until(
@@ -97,12 +97,12 @@ def fetch_html_from_links(links, output_dir="download_html"):
 
                 # Scorri fino alla sezione "Statistiche" (se necessario)
                 try:
-                    stats_section = WebDriverWait(driver, 10).until(
+                    stats_section = WebDriverWait(driver, 12).until(
                         EC.presence_of_element_located((By.ID, "stats"))
                     )
                     for i in range(0, 2000, 200):  # Scorrimento graduale
                         driver.execute_script(f"window.scrollBy(0, {i});")
-                        time.sleep(random.uniform(0.5, 2.0))
+                        time.sleep(random.uniform(0.5, 3.0))
                     driver.execute_script("arguments[0].scrollIntoView(true);", stats_section)
                     print("Scorrimento alla sezione 'Statistiche' completato.")
                     time.sleep(random.uniform(8, 13))  # Attendi il caricamento delle informazioni
