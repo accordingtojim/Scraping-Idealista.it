@@ -15,6 +15,7 @@ def fetch_html_from_links(links, output_dir="download_html"):
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--remote-debugging-port=9222")
 
     # Crea la directory di output
     os.makedirs(output_dir, exist_ok=True)
@@ -101,7 +102,7 @@ def fetch_html_from_links(links, output_dir="download_html"):
                     )
                     for i in range(0, 2000, 200):  # Scorrimento graduale
                         driver.execute_script(f"window.scrollBy(0, {i});")
-                        time.sleep(random.uniform(0.5, 1.5))
+                        time.sleep(random.uniform(0.5, 2.0))
                     driver.execute_script("arguments[0].scrollIntoView(true);", stats_section)
                     print("Scorrimento alla sezione 'Statistiche' completato.")
                     time.sleep(random.uniform(8, 13))  # Attendi il caricamento delle informazioni

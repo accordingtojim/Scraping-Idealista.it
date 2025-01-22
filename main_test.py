@@ -22,7 +22,7 @@ lista_province = ["sondrio","trento","bolzano-bozen"]
 
 len_comune = len(lista_comune)
 len_provincia = len(lista_provincia)
-if 0 :
+if 1 :
     for element in range(0,len_comune):
         nuovi_link = extract_auction_links_from_page_comune(lista_comune[element], lista_provincia[element],'affitto','all')
         links.update(nuovi_link)
@@ -33,9 +33,12 @@ if 0 :
     with open(f"{name_link}", 'w', encoding='utf-8') as file:
             json.dump(links_list, file, indent=4, ensure_ascii=False)
 
+
 with open(name_link, 'r', encoding='utf-8') as file:
-        links = json.load(file)  
+    links = json.load(file)  
 ids = extract_ids_from_links(links)
+
+
 
 if 1:
     fetch_html_from_links(links, save_directory)

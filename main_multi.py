@@ -4,7 +4,7 @@ from import_sqlite import import_json_to_sqlite
 import argparse  # Aggiunto argparse
 import os
 from bs4 import BeautifulSoup
-from undetc_test import fetch_html_from_links,parallel_fetch_html
+from undetected_multi import fetch_html_from_links,parallel_fetch_html
 #from sqlite_import import import_json_to_sqlite
 #from analyzing_pdf import custom_data_extraction,consolidate_json
 
@@ -25,11 +25,19 @@ else:
 
 base_profile_dir = os.path.abspath(dir_base) # Directory per gestire profili unici creati dallo script
 
+links = [    "https://www.idealista.it/immobile/31716553/",
+    "https://www.idealista.it/immobile/31310558/",
+    "https://www.idealista.it/immobile/30501368/",
+    "https://www.idealista.it/immobile/28606771/",
+    "https://www.idealista.it/immobile/31034392/",
+    "https://www.idealista.it/immobile/10378631/",
+    "https://www.idealista.it/immobile/5696603/",
+    "https://www.idealista.it/immobile/22916640/",
+    "https://www.idealista.it/immobile/31436908/"]
 
-
-with open(name_link, 'r', encoding='utf-8') as file:
-        links = json.load(file)  
-ids = extract_ids_from_links(links)
+# with open(name_link, 'r', encoding='utf-8') as file:
+#         links = json.load(file)  
+# ids = extract_ids_from_links(links)
 
 batch_size = len(links) // 2  # Modifica in base al numero di worker desiderati
 links_batches = [links[i:i + batch_size] for i in range(0, len(links), batch_size)]
