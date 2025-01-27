@@ -24,17 +24,13 @@ def run_idealista_scraper():
         page = context.new_page()
 
         try:
-            # Navigate to google.com
-            page.goto("https://www.google.com")
-            time.sleep(2)
-
-            # Navigate to idealista.com
-            page.goto("https://www.idealista.com")
-            time.sleep(2)
-
             # Navigate to idealista.it
             page.goto("https://www.idealista.it")
-            time.sleep(15)  # Allow time to manually download HAR
+            time.sleep(2)  # Wait for 2 seconds
+
+            # Click the "Accetta e chiudi" button
+            page.click("#didomi-notice-agree-button")
+            time.sleep(60)  # Wait for 5 seconds
 
         except Exception as e:
             print(f"Error occurred: {e}")
@@ -43,6 +39,3 @@ def run_idealista_scraper():
 
 if __name__ == "__main__":
     run_idealista_scraper()
-
-
-
