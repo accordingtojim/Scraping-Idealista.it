@@ -1,189 +1,220 @@
-import requests
 import time
 import random
-from bs4 import BeautifulSoup
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
-import mimetypes
-import re
-import tkinter as tk
-from tkinter import messagebox
-from requests.exceptions import RequestException
+from playwright.sync_api import sync_playwright
+from bs4 import BeautifulSoup
 
-# da riga 12 a 21 può essere anche sostituito semplicemente da do_download = 1
-def ask_user():
-    root = tk.Tk()
-    root.withdraw()  # Nasconde la finestra principale
-    # Mostra la finestra di dialogo con le opzioni 'Yes' e 'No'
-    response = messagebox.askyesno("Conferma Download", "Vuoi eseguire i download?")
-    # Se l'utente seleziona 'Yes', assegna 1 a do_download, altrimenti assegna 0
-    do_download = 1 if response else 0
-    return do_download
 
-#do_download = ask_user()
-
-def load_province_map(json_file_path):
-    try:
-        with open(json_file_path, 'r', encoding='utf-8') as file:
-            province_map = json.load(file)
-        return province_map
-    except FileNotFoundError:
-        print(f"Errore: il file {json_file_path} non è stato trovato.")
-        return {}
-    except json.JSONDecodeError:
-        print(f"Errore: il file {json_file_path} non contiene un JSON valido.")
-        return {}
+def login_to_idealista():
+    """
+    Logs into Idealista and returns an open browser session.
     
-# Funzione di supporto per pulire eventuale testo
-def clean_number(value):
-    if value:
-        # Sostituisce la virgola con un punto per conversione in float
-        value = value.replace(',', '.')
-        return value
-    return 1
-
-# Funzione di supporto per pulire il campo "Offerta Minima" (rimuove il "(1)")
-def clean_offerta_minima(value):
-    if value:
-        # Rimuove annotazioni come "(1)", "(2)", ecc.
-        cleaned = re.sub(r'\(\d+\)', '', value).strip()  # Modificato per rimuovere numeri tra parentesi
-        # Rimuove simboli monetari come '€'
-        cleaned = re.sub(r'[^\d,\.]', '', cleaned).strip()  # Mantiene solo numeri, virgola e punto
-        # Rimuove il punto come separatore delle migliaia
-        cleaned = cleaned.replace('.', '')  # Rimuove il punto
-        # Passa il risultato a clean_number per convertirlo in un numero
-        return clean_number(cleaned)
-    return 1
-
-def fetch_html_with_cookies(url, headers=None, proxies=None):
+    Returns:
+        browser (Playwright browser instance)
+        context (Playwright browser context)
+        page (Playwright page instance)
     """
-    Scarica il contenuto HTML di una pagina specificata dall'URL.
+    p = sync_playwright().start()
+    try:
+        browser = p.firefox.launch(headless=False, args=["--start-fullscreen"])
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:102.0) Gecko/20100101 Firefox/102.0",
+            viewport={"width": 1780, "height": 880},
+            locale="it-IT",
+            geolocation={"latitude": 41.9028, "longitude": 12.4964},
+            permissions=["geolocation", "notifications"],
+            timezone_id="Europe/Rome",
+        )
+        
+        # Remove automation-related properties
+        context.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+            window.navigator.chrome = {runtime: {}};
+            Object.defineProperty(navigator, 'languages', {get: () => ['it-IT', 'en-US']});
+            Object.defineProperty(navigator, 'platform', {get: () => 'Win32'});
+            Object.defineProperty(navigator, 'deviceMemory', {get: () => 8});
+            Object.defineProperty(navigator, 'hardwareConcurrency', {get: () => 4});
+        """)
+        
+        page = context.new_page()
+        
+        page.goto("https://www.idealista.it")
+        time.sleep(random.uniform(4, 8))
+        
+        try:
+            page.click("#didomi-notice-agree-button")
+            time.sleep(random.randint(4, 8))
+        except Exception as e:
+            print(f"Error in Step 3 (Accept Cookies): {e}")
+        
+        try:
+            page.click("a[data-markup='header-login']")
+            time.sleep(random.randint(4, 8))
+            page.fill("input[name='email']", "retaggi1990@gmail.com")
+            time.sleep(random.randint(4, 8))
+            page.click("button[data-testid='text-button-test']:has-text('Continua')")
+            time.sleep(random.randint(4, 8))
+            page.fill("input[type='password']", "Diocane04")
+            time.sleep(random.randint(4, 8))
+            page.click("button[data-testid='text-button-test']:has-text('Accedi')")
+            time.sleep(random.randint(4, 8))
+        except Exception as e:
+            print(f"Error in Step 4-8 (Login): {e}")
+        
+        return browser, context, page
+    except Exception as e:
+        print(f"Error in Step 1 (Browser Launch): {e}")
+        return None, None, None
 
-    :param url: URL della pagina da scaricare.
-    :param headers: Dizionario con gli headers da usare nella richiesta (opzionale).
-    :param proxies: Dizionario con i proxy da usare nella richiesta (opzionale).
-    :return: Contenuto HTML della pagina o None in caso di errore.
+def fetch_html_from_pagination(browser, context, page, data_list, download_html='download_html'):
     """
-    # Headers di default (se non specificati)
-    default_headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.45 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1'
-    }
-    # Usa gli headers forniti o quelli di default
-    headers = headers or default_headers
+    Fetches paginated HTML content from Idealista using an existing browser session.
+    """
+    if not os.path.exists(download_html):
+        os.makedirs(download_html)
 
     try:
-        session = requests.Session()  # Usa una sessione persistente
-        response = session.get(url, headers=headers, proxies=proxies)
-        response.raise_for_status()  # Solleva eccezioni per errori HTTP
-        return response.text
-    except RequestException as e:
-        print(f"Errore durante il fetch: {e}")
+        for città, provincia, categoria in data_list:
+            try:
+                base_url = f"https://www.idealista.it/{categoria}-case/{città}-{provincia}/"
+                page.goto(base_url)
+                time.sleep(random.randint(4, 8))
+
+                html_content = page.content()
+                soup = BeautifulSoup(html_content, "html.parser")
+                pagination = soup.find("div", class_="pagination")
+                if pagination:
+                    page_numbers = [
+                        int(link.text)
+                        for link in pagination.find_all("a")
+                        if link.text.isdigit()
+                    ]
+                    number_of_pages = max(page_numbers) if page_numbers else 1
+                else:
+                    number_of_pages = 1
+
+                print(f"Number of pages found for {base_url}: {number_of_pages}")
+
+                first_page_file = os.path.join(download_html, f"{città}_{provincia}_page_1.json")
+                with open(first_page_file, "w", encoding="utf-8") as file:
+                    json.dump({"url": base_url, "html": html_content}, file, ensure_ascii=False, indent=4)
+                print(f"Saved HTML for {base_url} to {first_page_file}")
+
+                for page_num in range(2, number_of_pages + 1):
+                    next_page_url = f"{base_url}lista-{page_num}.htm"
+                    print(f"Visiting {next_page_url}")
+                    try:
+                        page.goto(next_page_url)
+                        time.sleep(random.randint(4, 8))
+
+                        html_content = page.content()
+                        file_name = os.path.join(download_html, f"{città}_{provincia}_page_{page_num}.json")
+                        with open(file_name, "w", encoding="utf-8") as file:
+                            json.dump({"url": next_page_url, "html": html_content}, file, ensure_ascii=False, indent=4)
+                        print(f"Saved HTML for {next_page_url} to {file_name}")
+                    except Exception as e:
+                        print(f"Error in Step 13 (Page {page_num} Fetch for {base_url}): {e}")
+            except Exception as e:
+                print(f"Error processing {città}, {provincia}, {categoria}: {e}")
+
+    except Exception as e:
+        print(f"Error in Step 2-8 (Fetching HTML): {e}")
+        browser.close()
         return None
 
-def extract_auction_links_from_page_comune(città, provincia='provincia', categoria='affitto', num_pagine='all'):
+    return True
+
+def visit_extracted_links(browser=None, context=None, page=None, links_list=[], save_folder='visited_html'):
     """
-    Estrae i link degli annunci da tutte le pagine dei risultati per una data città e provincia.
+    Visits extracted links using an already opened browser session and ensures each page is fully loaded before moving to the next.
     
-    :param città: Nome della città.
-    :param provincia: Nome della provincia.
-    :param categoria: Categoria di ricerca (es. 'affitto').
-    :param num_pagine: Numero di pagine da scaricare (default 'all' per scaricare tutte).
+    Args:
+        browser: Playwright browser instance
+        context: Playwright browser context
+        page: Playwright page instance
+        save_folder: Folder to save visited pages
+        close_flag: Whether to close the browser after visiting all links
     """
-    base_url = f"https://www.idealista.it/{categoria}-case/{città}-{provincia}/"
-    params = {'ordine': 'pubblicazione-desc'}
-    links = set()
-    page_number = 1
+    if not os.path.exists(save_folder):
+        os.makedirs(save_folder)
+            
+    successfully_links_reached = []
 
-    while True:
-        if num_pagine != 'all' and page_number > int(num_pagine):
-            print(f"🔄 Numero massimo di pagine ({num_pagine}) raggiunto. Interruzione.")
-            break
+    for link in links_list[:]:  # Iterate over a copy to allow modification
+        try:
+            print(f"🔗 Visiting {link}")
+            page.goto(link, timeout=60000)  # Increased timeout to ensure full load
+            time.sleep(random.uniform(4, 8))  # Random delay to simulate human behavior
 
-        if page_number == 1:
-            url = base_url
-        else:
-            url = f"{base_url}lista-{page_number}.htm"
+            # Ensure page is fully loaded before proceeding
+            #page.wait_for_load_state("networkidle")
 
-        print(f"Scaricando: {url}")
-        html_content = fetch_html_with_cookies(url)
-        if html_content is None:
-            print(f"⚠️ Contenuto HTML vuoto per la pagina {page_number}. Interruzione.")
-            break
+            # Verify the page loaded correctly
+            html_content = page.content()
+            if len(html_content) > 5000:     #html_content and "captcha" not in html_content.lower() 
+                link_id = link.rstrip("/").split("/")[-1]  # Extract unique ID from URL
+                file_name = os.path.join(save_folder, f"{link_id}.json")
 
-        soup = BeautifulSoup(html_content, 'html.parser')
+                with open(file_name, "w", encoding="utf-8") as file:
+                    json.dump({"url": link, "html": html_content}, file, ensure_ascii=False, indent=4)
+                print(f"✅ Saved HTML for {link} to {file_name}")
+                successfully_links_reached.append(link)  # Add to successful links list
+                links_list.remove(link)  # Remove successfully processed link from the global list
+                
+            else:
+                print(f"⚠️ Page did not load correctly or contains CAPTCHA for {link}, skipping...")
+                browser.close()
+                print("🛑 Browser session closed.")
+                
+                break
 
-        # Estrai i link degli annunci
-        page_links = 0
-        for a_tag in soup.find_all('a', href=True):
-            relative_url = a_tag.get('href')
-            if relative_url.startswith('/immobile/'):
-                full_url = "https://www.idealista.it" + relative_url
-                if full_url not in links:
-                    links.add(full_url)
-                    page_links += 1
+        except Exception as e:
+            print(f"❌ Error visiting {link}: {e}")
+            continue  # Move to the next link even if one fails
 
-        if page_links == 0:
-            print(f"⚠️ Nessun nuovo link trovato nella pagina {page_number}. Interruzione.")
-            break
+    return links_list   
+                
 
-        page_number += 1
-        time.sleep(1)  # Rispetta il server evitando richieste troppo ravvicinate
-
-    return links
-
-def extract_auction_links_from_page_provincia(provincia='provincia', categoria='affitto', num_pagine='all'):
+def extract_links_from_json(folder_name):
     """
-    Estrae i link degli annunci da tutte le pagine dei risultati per una data città e provincia.
-    
-    :param città: Nome della città.
-    :param provincia: Nome della provincia.
-    :param categoria: Categoria di ricerca (es. 'affitto').
-    :param num_pagine: Numero di pagine da scaricare (default 'all' per scaricare tutte).
+    Extracts links of houses from all .json files in the specified folder.
+
+    Args:
+        folder_name (str): The name of the folder containing .json files.
+
+    Returns:
+        list: A list of extracted links.
     """
-    base_url = f"https://www.idealista.it/{categoria}-case/{provincia}-provincia/"
-    params = {'ordine': 'pubblicazione-desc'}
-    links = set()
-    page_number = 1
+    links = []
 
-    while True:
-        if num_pagine != 'all' and page_number > int(num_pagine):
-            print(f"🔄 Numero massimo di pagine ({num_pagine}) raggiunto. Interruzione.")
-            break
+    # Step 1: Ensure the folder exists
+    if not os.path.exists(folder_name):
+        print(f"Folder '{folder_name}' does not exist.")
+        return links
 
-        if page_number == 1:
-            url = base_url
-        else:
-            url = f"{base_url}lista-{page_number}.htm"
+    # Step 2: Iterate through all .json files in the folder
+    for file_name in os.listdir(folder_name):
+        if file_name.endswith(".json"):
+            file_path = os.path.join(folder_name, file_name)
+            try:
+                # Step 3: Open and parse the JSON file
+                with open(file_path, "r", encoding="utf-8") as file:
+                    data = json.load(file)
+                    html_content = data.get("html", "")
 
-        print(f"Scaricando: {url}")
-        html_content = fetch_html_with_cookies(url)
-        if html_content is None:
-            print(f"⚠️ Contenuto HTML vuoto per la pagina {page_number}. Interruzione.")
-            break
+                    # Step 4: Parse the HTML content with BeautifulSoup
+                    soup = BeautifulSoup(html_content, "html.parser")
 
-        soup = BeautifulSoup(html_content, 'html.parser')
+                    # Step 5: Extract links of houses
+                    for a_tag in soup.find_all('a', href=True):
+                        relative_url = a_tag.get('href')
+                        if relative_url.startswith('/immobile/'):
+                            full_url = "https://www.idealista.it" + relative_url
+                            links.append(full_url)
 
-        # Estrai i link degli annunci
-        page_links = 0
-        for a_tag in soup.find_all('a', href=True):
-            relative_url = a_tag.get('href')
-            if relative_url.startswith('/immobile/'):
-                full_url = "https://www.idealista.it" + relative_url
-                if full_url not in links:
-                    links.add(full_url)
-                    page_links += 1
-
-        if page_links == 0:
-            print(f"⚠️ Nessun nuovo link trovato nella pagina {page_number}. Interruzione.")
-            break
-
-        page_number += 1
-        time.sleep(1)  # Rispetta il server evitando richieste troppo ravvicinate
+            except Exception as e:
+                print(f"Error processing file '{file_name}': {e}")
 
     return links
 
@@ -299,139 +330,3 @@ def extract_house_details(json_file_path):
     }
 
     return details
-
-
-def extract_ids_from_links(links):
-    """
-    Estrae gli ID dai link forniti.
-
-    :param links: Lista di link.
-    :return: Lista di ID estratti dai link.
-    """
-    ids = []
-    for link in links:
-        try:
-            # L'ID è il penultimo elemento separato da '/'
-            id_immobile = link.strip('/').split('/')[-1]
-            ids.append(id_immobile)
-        except IndexError:
-            print(f"⚠️ Link non valido: {link}")
-    return ids
-
-
-def download_files_from_page(url, auction_directory):
-    """Scarica tutti i file da una pagina di un'asta in multithreading."""
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        html_content = response.text
-    except requests.exceptions.RequestException as e:
-        print(f"Errore durante il download della pagina: {e}")
-        return
-    
-    soup = BeautifulSoup(html_content, 'html.parser')
-
-    # Crea la directory specifica per l'asta se non esiste
-    if not os.path.exists(auction_directory):
-        os.makedirs(auction_directory)
-
-    # Cerca i link ai file nel nuovo formato HTML
-    document_container = soup.find('ul', class_='documenti d-flex flex-wrap')
-    if not document_container:
-        print("Nessun documento trovato nella pagina.")
-        return
-    
-    links = document_container.find_all('a', href=True)
-    
-    with ThreadPoolExecutor(max_workers=2) as executor:  # Puoi modificare max_workers per regolare il grado di parallelismo
-        futures = []
-        for link in links:
-            href = link['href']
-            link_text = link.text.lower()
-            if any(keyword in link_text for keyword in ["planimetria", "ordinanza", "perizia", "avviso"]):
-                file_name = href.split('/')[-1]
-                file_url = href if href.startswith('http') else "https://documents.astalegale.net" + href
-                file_path = os.path.join(auction_directory, file_name)
-
-                # Funzione diretta per il download
-                futures.append(
-                    executor.submit(
-                        lambda url, path: 
-                        download_file(url, path), 
-                        file_url, 
-                        file_path
-                    )
-                )
-
-        for future in as_completed(futures):
-            try:
-                future.result()  # Controlla eventuali eccezioni nel thread
-            except Exception as e:
-                print(f"Errore durante il download di un file: {e}")
-
-def download_file(file_url, file_path):
-    """Scarica e salva un singolo file, aggiunge l'estensione se mancante e gestisce la rimozione di duplicati."""
-    try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
-        }
-        session = requests.Session()  # Usa una sessione persistente
-        print(f"Scaricando {file_path} da: {file_url}")
-        
-        file_response = session.get(file_url, headers=headers, stream=True)
-        file_response.raise_for_status()
-        
-        # Ottieni il content-type e determina l'estensione
-        content_type = file_response.headers.get('Content-Type', '')
-        guessed_extension = mimetypes.guess_extension(content_type)
-        
-        # Se il file_path non ha un'estensione, usiamo quella rilevata
-        if '.' not in os.path.basename(file_path) and guessed_extension:
-            file_path_with_extension = file_path + guessed_extension
-        elif not file_path.endswith(('.pdf', '.jpg', '.png', '.docx', '.xlsx')) and guessed_extension:
-            file_path_with_extension = file_path + guessed_extension
-        else:
-            file_path_with_extension = file_path
-        
-        # Se il file con estensione esiste, non lo scarichiamo di nuovo
-        if os.path.exists(file_path_with_extension):
-            print(f"❌ File già esistente: {file_path_with_extension}, download saltato.")
-            return
-
-        with open(file_path_with_extension, 'wb') as file:
-            for chunk in file_response.iter_content(chunk_size=1024):
-                file.write(chunk)
-        
-        print(f"✅ File salvato in: {file_path_with_extension}")
-        
-        # Elimina il file senza estensione se esiste
-        if file_path != file_path_with_extension and os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-                print(f"🗑️ File duplicato rimosso: {file_path}")
-            except Exception as e:
-                print(f"⚠️ Errore durante la rimozione del file duplicato {file_path}: {e}")
-    except requests.exceptions.RequestException as e:
-        print(f"❌ Errore durante il download del file {file_path}: {e}")
-
-def download_files_for_all_auctions(auction, save_directory="downloads"):
-    """Scarica i file per tutte le aste, eseguendo il download delle pagine e dei file in multithreading."""
-    indirizzo = auction['Indirizzo']
-    comune = auction['Comune']
-    auction_url = auction['URL']
-    directory_name = f"{indirizzo}_{comune}" if indirizzo != 'Indirizzo non trovato' else "asta_generica"
-    auction.update({'Directory_name': directory_name})
-    auction_directory = os.path.join(save_directory, directory_name)
-
-    asteannuncio_url = auction_url.replace("www.canaleaste.it", "www.asteannunci.it")
-    print(f"Scaricando i file per l'asta: {asteannuncio_url}")
-
-    download_files_from_page(asteannuncio_url, auction_directory)
-
-
-        
-
-
-        
-        
-

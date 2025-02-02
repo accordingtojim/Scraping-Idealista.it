@@ -1,3 +1,4 @@
+#name file = test_vpn.py
 import os
 import random
 import subprocess
@@ -52,7 +53,8 @@ def connect_vpn():
     
     # Run OpenVPN and log errors
     result = os.system(f"sudo {OPENVPN_PATH} --config {full_vpn_path} --daemon")
-
+    time.sleep(5)
+    
     if result != 0:
         print("⚠️ Error: OpenVPN did not start properly. Check if the config file is correct.")
         return
@@ -83,9 +85,7 @@ def check_vpn_status():
         print(f"❌ Error checking IP: {e}")
         return None
 
-# Example usage:
-connect_vpn()  # Connects to a random country
-print("🔎 Checking VPN status...")
-check_vpn_status()
 
+#chflags -R nouchg *.ovpn
+#xattr -dr com.apple.quarantine *.ovpn
 
