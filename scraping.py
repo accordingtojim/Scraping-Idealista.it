@@ -15,7 +15,6 @@ def login_to_idealista():
         context (Playwright browser context)
         page (Playwright page instance)
     """
-    p = sync_playwright().start()
     try:
         browser = p.firefox.launch(headless=False, args=["--start-fullscreen"])
         context = browser.new_context(
