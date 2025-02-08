@@ -88,4 +88,6 @@ def check_vpn_status():
 
 #chflags -R nouchg *.ovpn
 #xattr -dr com.apple.quarantine *.ovpn
+disconnect_vpn()
+reset_dns()
 

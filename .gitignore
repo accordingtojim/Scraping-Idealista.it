@@ -180,3 +180,7 @@ test.py
 links.json
 browser_profiles/
 downloads/
+visited_html/
+node_modules/
+download_html/
+improvememnts_scraping.rtf

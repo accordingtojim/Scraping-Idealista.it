@@ -4,9 +4,11 @@ import os
 import json
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
-
+from playwright.async_api import async_playwright
+import asyncio
 
 def login_to_idealista():
+    
     """
     Logs into Idealista and returns an open browser session.
     
@@ -15,6 +17,7 @@ def login_to_idealista():
         context (Playwright browser context)
         page (Playwright page instance)
     """
+    p = sync_playwright().start()
     try:
         browser = p.firefox.launch(headless=False, args=["--start-fullscreen"])
         context = browser.new_context(
@@ -65,7 +68,6 @@ def login_to_idealista():
     except Exception as e:
         print(f"Error in Step 1 (Browser Launch): {e}")
         return None, None, None
-
 def fetch_html_from_pagination(browser, context, page, data_list, download_html='download_html'):
     """
     Fetches paginated HTML content from Idealista using an existing browser session.
@@ -124,34 +126,59 @@ def fetch_html_from_pagination(browser, context, page, data_list, download_html=
 
     return True
 
+def is_captcha_page(html_content):
+    """
+    Determines if the page contains a Captcha challenge based on its HTML structure.
+    """
+    captcha_keywords = [
+        'geo.captcha-delivery.com',  # DataDome Captcha URL
+        'DataDome CAPTCHA',  # Captcha iframe title
+        'c.js',  # DataDome script
+        'var dd=',  # Captcha-related script
+        '<iframe',  # If there's an unexpected iframe, might be Captcha
+        'allow-scripts allow-same-origin allow-forms',  # Common Captcha sandbox settings
+    ]
+    return len(html_content) < 5000 #any(keyword in html_content.lower() for keyword in captcha_keywords) or 
+
+import os
+import time
+import random
+import json
+from playwright.sync_api import sync_playwright
+
 def visit_extracted_links(browser=None, context=None, page=None, links_list=[], save_folder='visited_html'):
     """
-    Visits extracted links using an already opened browser session and ensures each page is fully loaded before moving to the next.
+    Visits extracted links using an already opened browser session, scrolls up/down,
+    and ensures each page is fully loaded before moving to the next.
     
     Args:
         browser: Playwright browser instance
         context: Playwright browser context
         page: Playwright page instance
         save_folder: Folder to save visited pages
-        close_flag: Whether to close the browser after visiting all links
     """
     if not os.path.exists(save_folder):
         os.makedirs(save_folder)
             
     successfully_links_reached = []
-
+    exception = 0
     for link in links_list[:]:  # Iterate over a copy to allow modification
         try:
             print(f"🔗 Visiting {link}")
             page.goto(link, timeout=60000)  # Increased timeout to ensure full load
             time.sleep(random.uniform(4, 8))  # Random delay to simulate human behavior
 
+            # ✅ Scroll up and down randomly
+            for _ in range(random.randint(1, 3)):  # Perform 2 to 4 random scroll actions
+                scroll_distance = random.randint(300, 800)  # Scroll between 300px and 800px
+                page.evaluate(f"window.scrollBy(0, {scroll_distance});")  # Scroll down
+                time.sleep(random.uniform(1, 3))  # Pause briefly
+                page.evaluate(f"window.scrollBy(0, {-scroll_distance // 2});")  # Scroll up slightly
+                time.sleep(random.uniform(1, 3))  # Pause again
+            
             # Ensure page is fully loaded before proceeding
-            #page.wait_for_load_state("networkidle")
-
-            # Verify the page loaded correctly
             html_content = page.content()
-            if len(html_content) > 5000:     #html_content and "captcha" not in html_content.lower() 
+            if not is_captcha_page(html_content):
                 link_id = link.rstrip("/").split("/")[-1]  # Extract unique ID from URL
                 file_name = os.path.join(save_folder, f"{link_id}.json")
 
@@ -165,16 +192,19 @@ def visit_extracted_links(browser=None, context=None, page=None, links_list=[], 
                 print(f"⚠️ Page did not load correctly or contains CAPTCHA for {link}, skipping...")
                 browser.close()
                 print("🛑 Browser session closed.")
-                
                 break
 
         except Exception as e:
             print(f"❌ Error visiting {link}: {e}")
+            exception += 1
+            if exception > 3:
+                print("🛑 Too many exceptions, closing browser...")
+                break
             continue  # Move to the next link even if one fails
 
-    return links_list   
+    return links_list 
+  
                 
-
 def extract_links_from_json(folder_name):
     """
     Extracts links of houses from all .json files in the specified folder.

@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 from import_sqlite import import_json_to_sqlite
 from scraping import fetch_html_from_pagination,extract_links_from_json,visit_extracted_links,extract_house_details,login_to_idealista
 from test_vpn import connect_vpn,check_vpn_status,disconnect_vpn
+import asyncio
 
 num_attempts = 0
 max_attempts = 4
@@ -31,15 +32,15 @@ name_dump = 'debug.json'
 houses = []
 name_link = 'links.json'
 browser = None
-vpn_active = False
+vpn_active = True
 
 if vpn_active:
     if check_vpn_status != None:
         disconnect_vpn()
-    time.sleep(2)
+    time.sleep(5)
 
     connect_vpn()
-    time.sleep(1)
+    time.sleep(7)
     check_vpn_status()
 
 
@@ -59,13 +60,14 @@ while links_list and num_attempts < max_attempts:
     if browser == None:
         browser1, context1, page1 = login_to_idealista()
         
+        
     links_list = visit_extracted_links(browser1,context1,page1,links_list,save_folder)
     
     if  links_list :       
         num_attempts += 1
         print("Gotcha! By a Captcha!")
-        browser.close()
-        time.sleep(1)
+       
+        time.sleep(2)
         if vpn_active:
             disconnect_vpn()
             time.sleep(1)
